@@ -3,7 +3,7 @@
    Cache version: bump CACHE_VERSION when files change
    ===================================================== */
 
-const CACHE_VERSION = "catena-netsheet-v3";
+const CACHE_VERSION = "catena-netsheet-v4";
 
 const APP_SHELL = [
   "./index.html",

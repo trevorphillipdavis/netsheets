@@ -202,6 +202,29 @@
       font-weight: 500;
     }
 
+    .lookup-status.progress {
+      color: var(--cp-link);
+    }
+
+    .lookup-status.success {
+      color: var(--cp-success);
+    }
+
+    .lookup-status.error {
+      color: var(--cp-danger);
+    }
+
+    .tax-lookup {
+      display: grid;
+      gap: 6px;
+      grid-column: 2;
+      align-self: start;
+    }
+
+    .tax-lookup button {
+      width: 100%;
+    }
+
     .sr-only {
       position: absolute;
       width: 1px;
@@ -452,6 +475,10 @@
         grid-template-columns: 1fr;
       }
 
+      .tax-lookup {
+        grid-column: auto;
+      }
+
       .sheet {
         position: static;
       }
@@ -574,7 +601,6 @@
         <div class="section grid">
           <label>Annual property taxes
             <input name="annualTaxes" type="text" inputmode="decimal" value="0" data-currency>
-            <span class="sr-only" id="taxLookupStatus" aria-live="polite"></span>
           </label>
           <label>Taxes already paid?
             <select name="taxesPaid">
@@ -582,6 +608,10 @@
               <option value="yes">Yes - seller gets credit</option>
             </select>
           </label>
+          <div class="tax-lookup">
+            <button type="button" id="taxLookupButton">Lookup property taxes</button>
+            <div class="lookup-status" id="taxLookupStatus" role="status" aria-live="polite"></div>
+          </div>
           <label>Annual HOA / condo dues
             <input name="annualHoa" type="text" inputmode="decimal" value="0" data-currency>
           </label>
@@ -648,10 +678,10 @@
     const rows = document.getElementById("summaryRows");
     const zipInput = document.getElementById("zipInput");
     const zipLookupStatus = document.getElementById("zipLookupStatus");
+    const taxLookupButton = document.getElementById("taxLookupButton");
     const taxLookupStatus = document.getElementById("taxLookupStatus");
     let zipLookupTimer;
     let zipLookupController;
-    let taxLookupTimer;
     let taxLookupController;
     const moneyFormatter = new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -1046,7 +1076,6 @@
             ? `Auto-filled ${form.elements.city.value}, ${form.elements.state.value}, ${form.elements.county.value}.`
             : `Auto-filled ${form.elements.city.value}, ${form.elements.state.value}. Enter county manually if needed.`;
           updateDocStampRate();
-          scheduleTaxLookup();
           render();
         } catch (error) {
           if (error.name === "AbortError") return;
@@ -1182,57 +1211,63 @@
       return 0;
     }
 
-    function scheduleTaxLookup() {
-      window.clearTimeout(taxLookupTimer);
+    function setTaxLookupStatus(message, tone = "") {
+      taxLookupStatus.textContent = message;
+      taxLookupStatus.className = `lookup-status${tone ? ` ${tone}` : ""}`;
+    }
+
+    async function runTaxLookup() {
       if (taxLookupController) taxLookupController.abort();
 
       if (!isBrowardCounty()) {
-        form.elements.annualTaxes.value = formatMoney(0);
-        taxLookupStatus.textContent = "County is not Broward; annual property taxes left at zero.";
-        render();
+        const county = text("county") || "This county";
+        setTaxLookupStatus(`${county} property taxes not available, please input manually.`, "error");
         return;
       }
 
-      taxLookupTimer = window.setTimeout(async () => {
-        taxLookupController = new AbortController();
-        taxLookupStatus.textContent = "Looking up Broward property taxes.";
-        try {
-          const taxAmount = await lookupBrowardAnnualTaxes(taxLookupController.signal);
-          form.elements.annualTaxes.value = formatMoney(taxAmount);
-          taxLookupStatus.textContent = taxAmount
-            ? "Auto-filled annual property taxes from BCPA."
-            : "BCPA tax lookup did not find a matching billed tax amount.";
-          render();
-        } catch (error) {
-          if (error.name === "AbortError") return;
-          form.elements.annualTaxes.value = formatMoney(0);
-          taxLookupStatus.textContent = "BCPA tax lookup unavailable; annual property taxes left at zero.";
-          render();
+      taxLookupController = new AbortController();
+      taxLookupButton.disabled = true;
+      taxLookupButton.setAttribute("aria-busy", "true");
+      setTaxLookupStatus("Looking up Broward property taxes...", "progress");
+
+      try {
+        const taxAmount = await lookupBrowardAnnualTaxes(taxLookupController.signal);
+        if (!taxAmount) throw new Error("No billed tax amount found");
+        form.elements.annualTaxes.value = formatMoney(taxAmount);
+        setTaxLookupStatus("Annual property taxes updated from BCPA.", "success");
+        render();
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setTaxLookupStatus("Broward property tax lookup failed, please input manually.", "error");
         }
-      }, 500);
+      } finally {
+        taxLookupButton.disabled = false;
+        taxLookupButton.removeAttribute("aria-busy");
+      }
     }
 
     form.addEventListener("input", (event) => {
       if (["county", "state", "zip"].includes(event.target.name)) updateDocStampRate();
-      if (["street", "city", "state", "zip", "county"].includes(event.target.name)) scheduleTaxLookup();
       render();
     });
     form.addEventListener("change", (event) => {
       if (["county", "state", "zip"].includes(event.target.name)) updateDocStampRate();
-      if (["street", "city", "state", "zip", "county"].includes(event.target.name)) scheduleTaxLookup();
       render();
     });
     form.addEventListener("reset", () => {
       setTimeout(() => {
         form.elements.closingDate.value = "";
         initializeCurrencyFields();
-        taxLookupStatus.textContent = "";
+        setTaxLookupStatus("");
+        taxLookupButton.disabled = false;
+        taxLookupButton.removeAttribute("aria-busy");
         render();
       }, 0);
     });
     document.getElementById("printButton").addEventListener("click", () => {
       generatePdf();
     });
+    taxLookupButton.addEventListener("click", runTaxLookup);
     zipInput.addEventListener("input", lookupZip);
     form.querySelectorAll("[data-currency]").forEach((field) => {
       field.addEventListener("blur", () => formatCurrencyField(field));
