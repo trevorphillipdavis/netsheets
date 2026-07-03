@@ -1218,9 +1218,9 @@
       const typedFolio = Boolean(folioFromInput());
 
       for (const folio of folios) {
-        const response = await fetch(`https://r.jina.ai/http://bcpa.net/RecInfo.asp?URL_Folio=${encodeURIComponent(folio)}`, {
+        const response = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent('https://bcpa.net/RecInfo.asp?URL_Folio=' + folio)}`, {
           signal,
-          headers: { "Accept": "text/plain" }
+          headers: { "Accept": "text/html" }
         });
         if (!response.ok) continue;
         const recordText = await response.text();
