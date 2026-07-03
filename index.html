@@ -755,6 +755,11 @@
       return normalizeCounty(text("county")) === "broward";
     }
 
+    function countyLookupName() {
+      const county = text("county").replace(/\bcounty\b/gi, "").trim();
+      return county ? `${county} County` : "This county";
+    }
+
     function formatCurrencyField(field) {
       field.value = formatMoney(value(field.name));
     }
@@ -1219,18 +1224,17 @@
     async function runTaxLookup() {
       if (taxLookupController) taxLookupController.abort();
 
-      if (!isBrowardCounty()) {
-        const county = text("county") || "This county";
-        setTaxLookupStatus(`${county} property taxes not available, please input manually.`, "error");
-        return;
-      }
-
       taxLookupController = new AbortController();
       taxLookupButton.disabled = true;
       taxLookupButton.setAttribute("aria-busy", "true");
-      setTaxLookupStatus("Looking up Broward property taxes...", "progress");
+      setTaxLookupStatus("Checking property tax lookup availability...", "progress");
 
       try {
+        if (!isBrowardCounty()) {
+          throw new Error(`${countyLookupName()} isn't available, please input manually.`);
+        }
+
+        setTaxLookupStatus("Looking up Broward property taxes...", "progress");
         const taxAmount = await lookupBrowardAnnualTaxes(taxLookupController.signal);
         if (!taxAmount) throw new Error("No billed tax amount found");
         form.elements.annualTaxes.value = formatMoney(taxAmount);
@@ -1238,7 +1242,7 @@
         render();
       } catch (error) {
         if (error.name !== "AbortError") {
-          setTaxLookupStatus("Broward property tax lookup failed, please input manually.", "error");
+          setTaxLookupStatus(error.message || "Broward property tax lookup failed, please input manually.", "error");
         }
       } finally {
         taxLookupButton.disabled = false;
