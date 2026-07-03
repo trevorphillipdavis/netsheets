@@ -648,40 +648,42 @@
 
       </form>
 
-      <section class="sheet" id="pdfSheet" aria-live="polite">
-        <div class="sheet-header">
-          <h2>Seller Net Sheet</h2>
-          <div class="sheet-meta">
-            <div><strong>Property:</strong> <span data-out="address"></span></div>
-            <div><strong>County:</strong> <span data-out="county"></span></div>
-            <div><strong>Prepared for:</strong> <span data-out="client"></span></div>
-            <div><strong>Prepared by:</strong> <span data-out="preparedBy"></span></div>
-            <div><strong>Estimated closing date:</strong> <span data-out="closingDate"></span></div>
+      <div style="display:grid; gap:16px; align-content:start;">
+        <section class="sheet" id="pdfSheet" aria-live="polite">
+          <div class="sheet-header">
+            <h2>Seller Net Sheet</h2>
+            <div class="sheet-meta">
+              <div><strong>Property:</strong> <span data-out="address"></span></div>
+              <div><strong>County:</strong> <span data-out="county"></span></div>
+              <div><strong>Prepared for:</strong> <span data-out="client"></span></div>
+              <div><strong>Prepared by:</strong> <span data-out="preparedBy"></span></div>
+              <div><strong>Estimated closing date:</strong> <span data-out="closingDate"></span></div>
+            </div>
           </div>
+
+          <div class="summary-total" id="netProceedsCard">
+            <span>Estimated net proceeds</span>
+            <strong data-money="netProceeds"></strong>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Line item</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody id="summaryRows"></tbody>
+          </table>
+
+          <p class="note">This seller net sheet is an estimate for planning purposes only. Actual closing costs, taxes, prorations, loan payoffs, association fees, and broker compensation may vary. Confirm all figures with the purchase contract, lender payoff statement, title/settlement provider, and applicable local requirements.</p>
+
+        </section>
+
+        <div class="actions">
+          <button class="primary" type="button" id="printButton">Generate PDF</button>
+          <button type="reset">Reset</button>
         </div>
-
-        <div class="summary-total" id="netProceedsCard">
-          <span>Estimated net proceeds</span>
-          <strong data-money="netProceeds"></strong>
-        </div>
-
-        <table>
-          <thead>
-            <tr>
-              <th>Line item</th>
-              <th>Amount</th>
-            </tr>
-          </thead>
-          <tbody id="summaryRows"></tbody>
-        </table>
-
-        <p class="note">This seller net sheet is an estimate for planning purposes only. Actual closing costs, taxes, prorations, loan payoffs, association fees, and broker compensation may vary. Confirm all figures with the purchase contract, lender payoff statement, title/settlement provider, and applicable local requirements.</p>
-
-      </section>
-
-      <div class="actions">
-        <button class="primary" type="button" id="printButton">Generate PDF</button>
-        <button type="reset">Reset</button>
       </div>
     </div>
   </main>
