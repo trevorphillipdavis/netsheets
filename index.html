@@ -574,6 +574,7 @@
         <div class="section grid">
           <label>Annual property taxes
             <input name="annualTaxes" type="text" inputmode="decimal" value="0" data-currency>
+            <span class="sr-only" id="taxLookupStatus" aria-live="polite"></span>
           </label>
           <label>Taxes already paid?
             <select name="taxesPaid">
@@ -647,8 +648,11 @@
     const rows = document.getElementById("summaryRows");
     const zipInput = document.getElementById("zipInput");
     const zipLookupStatus = document.getElementById("zipLookupStatus");
+    const taxLookupStatus = document.getElementById("taxLookupStatus");
     let zipLookupTimer;
     let zipLookupController;
+    let taxLookupTimer;
+    let taxLookupController;
     const moneyFormatter = new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
@@ -715,6 +719,10 @@
       const state = text("state").toUpperCase();
       const rate = floridaDocStampRates.get(normalizeCounty(text("county")));
       form.elements.transferTaxPct.value = zip.length === 5 && state !== "FL" ? 0 : (rate ?? 0);
+    }
+
+    function isBrowardCounty() {
+      return normalizeCounty(text("county")) === "broward";
     }
 
     function formatCurrencyField(field) {
@@ -1038,6 +1046,7 @@
             ? `Auto-filled ${form.elements.city.value}, ${form.elements.state.value}, ${form.elements.county.value}.`
             : `Auto-filled ${form.elements.city.value}, ${form.elements.state.value}. Enter county manually if needed.`;
           updateDocStampRate();
+          scheduleTaxLookup();
           render();
         } catch (error) {
           if (error.name === "AbortError") return;
@@ -1048,18 +1057,176 @@
       }, 350);
     }
 
+    function parseMoney(amount) {
+      return Number.parseFloat(String(amount).replace(/[^0-9.-]/g, "")) || 0;
+    }
+
+    function folioFromInput() {
+      const candidates = [text("street"), text("zip")];
+      for (const candidate of candidates) {
+        const compact = candidate.replace(/[^0-9a-z]/gi, "");
+        if (/^[0-9]{6}[0-9a-z]{2}[0-9]{4}$/i.test(compact)) return compact.toUpperCase();
+      }
+      return "";
+    }
+
+    async function geocodePropertyAddress(signal) {
+      const query = composeAddress();
+      if (!query || !text("street")) return null;
+
+      const params = new URLSearchParams({
+        format: "jsonv2",
+        q: query,
+        addressdetails: "1",
+        limit: "1"
+      });
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+        signal,
+        headers: { "Accept": "application/json" }
+      });
+      if (!response.ok) throw new Error("Address lookup failed");
+      const results = await response.json();
+      return results && results[0] ? results[0] : null;
+    }
+
+    function addressMatchTokens() {
+      const compactStreet = text("street").toLowerCase().replace(/[^a-z0-9\s]/g, " ");
+      const parts = compactStreet.split(/\s+/).filter(Boolean);
+      const streetNumber = parts.find((part) => /^\d+$/.test(part)) || "";
+      const ignored = new Set(["n", "s", "e", "w", "ne", "nw", "se", "sw", "north", "south", "east", "west", "street", "st", "avenue", "ave", "road", "rd", "drive", "dr", "court", "ct", "circle", "cir", "boulevard", "blvd", "terrace", "ter", "place", "pl", "lane", "ln", "way", "unit", "apt", "suite", "ste"]);
+      const streetWords = parts.filter((part) => part !== streetNumber && !ignored.has(part));
+      return [streetNumber, ...streetWords].filter(Boolean);
+    }
+
+    function recordMatchesAddress(recordText) {
+      const tokens = addressMatchTokens();
+      if (tokens.length < 2) return false;
+      const haystack = recordText.toLowerCase().replace(/[^a-z0-9\s]/g, " ");
+      return tokens.every((token) => haystack.includes(token));
+    }
+
+    async function lookupBrowardFolios(signal) {
+      const typedFolio = folioFromInput();
+      if (typedFolio) return [typedFolio];
+
+      const location = await geocodePropertyAddress(signal);
+      if (!location || !location.lat || !location.lon) return [];
+
+      const latitude = Number.parseFloat(location.lat);
+      const longitude = Number.parseFloat(location.lon);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return [];
+
+      const buffer = 0.00035;
+      const geometry = {
+        xmin: longitude - buffer,
+        ymin: latitude - buffer,
+        xmax: longitude + buffer,
+        ymax: latitude + buffer,
+        spatialReference: { wkid: 4326 }
+      };
+      const params = new URLSearchParams({
+        f: "json",
+        where: "1=1",
+        geometry: JSON.stringify(geometry),
+        geometryType: "esriGeometryEnvelope",
+        inSR: "4326",
+        spatialRel: "esriSpatialRelIntersects",
+        outFields: "FOLIO",
+        returnGeometry: "false",
+        resultRecordCount: "12"
+      });
+      const response = await fetch(`https://gisweb-adapters.bcpa.net/arcgis/rest/services/BCPA_EXTERNAL_JAN26/MapServer/16/query?${params}`, {
+        signal,
+        headers: { "Accept": "application/json" }
+      });
+      if (!response.ok) throw new Error("BCPA parcel lookup failed");
+      const data = await response.json();
+      const folios = (data.features || [])
+        .map((feature) => feature.attributes && feature.attributes.FOLIO)
+        .filter(Boolean);
+
+      return [...new Set(folios)];
+    }
+
+    function extractAnnualTax(recordText) {
+      const start = recordText.indexOf("Property Assessment Values");
+      if (start < 0) return 0;
+      const end = recordText.indexOf("Sales History", start);
+      const assessmentText = recordText.slice(start, end > start ? end : start + 2500).replace(/\s+/g, " ");
+      const rowPattern = /\b(20\d{2})(?:\s+20\d{2}\*)?\s*((?:\$[\d,]+(?:\.\d{2})?\s*){4,5})/g;
+      let match;
+
+      while ((match = rowPattern.exec(assessmentText))) {
+        const amounts = match[2].match(/\$[\d,]+(?:\.\d{2})?/g) || [];
+        if (amounts.length >= 5) return parseMoney(amounts[4]);
+      }
+      return 0;
+    }
+
+    async function lookupBrowardAnnualTaxes(signal) {
+      const folios = await lookupBrowardFolios(signal);
+      if (!folios.length) return 0;
+      const typedFolio = Boolean(folioFromInput());
+
+      for (const folio of folios) {
+        const response = await fetch(`https://r.jina.ai/http://bcpa.net/RecInfo.asp?URL_Folio=${encodeURIComponent(folio)}`, {
+          signal,
+          headers: { "Accept": "text/plain" }
+        });
+        if (!response.ok) continue;
+        const recordText = await response.text();
+        if (typedFolio || folios.length === 1 || recordMatchesAddress(recordText)) {
+          return extractAnnualTax(recordText);
+        }
+      }
+      return 0;
+    }
+
+    function scheduleTaxLookup() {
+      window.clearTimeout(taxLookupTimer);
+      if (taxLookupController) taxLookupController.abort();
+
+      if (!isBrowardCounty()) {
+        form.elements.annualTaxes.value = formatMoney(0);
+        taxLookupStatus.textContent = "County is not Broward; annual property taxes left at zero.";
+        render();
+        return;
+      }
+
+      taxLookupTimer = window.setTimeout(async () => {
+        taxLookupController = new AbortController();
+        taxLookupStatus.textContent = "Looking up Broward property taxes.";
+        try {
+          const taxAmount = await lookupBrowardAnnualTaxes(taxLookupController.signal);
+          form.elements.annualTaxes.value = formatMoney(taxAmount);
+          taxLookupStatus.textContent = taxAmount
+            ? "Auto-filled annual property taxes from BCPA."
+            : "BCPA tax lookup did not find a matching billed tax amount.";
+          render();
+        } catch (error) {
+          if (error.name === "AbortError") return;
+          form.elements.annualTaxes.value = formatMoney(0);
+          taxLookupStatus.textContent = "BCPA tax lookup unavailable; annual property taxes left at zero.";
+          render();
+        }
+      }, 500);
+    }
+
     form.addEventListener("input", (event) => {
       if (["county", "state", "zip"].includes(event.target.name)) updateDocStampRate();
+      if (["street", "city", "state", "zip", "county"].includes(event.target.name)) scheduleTaxLookup();
       render();
     });
     form.addEventListener("change", (event) => {
       if (["county", "state", "zip"].includes(event.target.name)) updateDocStampRate();
+      if (["street", "city", "state", "zip", "county"].includes(event.target.name)) scheduleTaxLookup();
       render();
     });
     form.addEventListener("reset", () => {
       setTimeout(() => {
         form.elements.closingDate.value = "";
         initializeCurrencyFields();
+        taxLookupStatus.textContent = "";
         render();
       }, 0);
     });

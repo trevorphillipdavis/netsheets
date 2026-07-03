@@ -3,7 +3,7 @@
    Cache version: bump CACHE_VERSION when files change
    ===================================================== */
 
-const CACHE_VERSION = "catena-netsheet-v2";
+const CACHE_VERSION = "catena-netsheet-v3";
 
 const APP_SHELL = [
   "./index.html",
@@ -16,8 +16,10 @@ const APP_SHELL = [
 ];
 
 const NETWORK_FIRST_ORIGINS = [
+  "gisweb-adapters.bcpa.net",
   "api.zippopotam.us",
-  "nominatim.openstreetmap.org"
+  "nominatim.openstreetmap.org",
+  "r.jina.ai"
 ];
 
 self.addEventListener("install", (event) => {
