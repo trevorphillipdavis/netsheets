@@ -195,6 +195,29 @@
       font-weight: 600;
     }
 
+    .field-label {
+      color: var(--cp-text-muted);
+      font-size: 0.86rem;
+      font-weight: 600;
+    }
+
+    .tax-field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .tax-input-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .tax-input-row button {
+      min-width: 88px;
+      white-space: nowrap;
+    }
+
     .lookup-status {
       min-height: 16px;
       color: var(--cp-text-soft);
@@ -212,17 +235,6 @@
 
     .lookup-status.error {
       color: var(--cp-danger);
-    }
-
-    .tax-lookup {
-      display: grid;
-      gap: 6px;
-      grid-column: 2;
-      align-self: start;
-    }
-
-    .tax-lookup button {
-      width: 100%;
     }
 
     .sr-only {
@@ -475,8 +487,8 @@
         grid-template-columns: 1fr;
       }
 
-      .tax-lookup {
-        grid-column: auto;
+      .tax-input-row {
+        grid-template-columns: 1fr;
       }
 
       .sheet {
@@ -599,19 +611,20 @@
 
         <h2>Prorations</h2>
         <div class="section grid">
-          <label>Annual property taxes
-            <input name="annualTaxes" type="text" inputmode="decimal" value="0" data-currency>
-          </label>
+          <div class="tax-field">
+            <label class="field-label" for="annualTaxesInput">Annual property taxes</label>
+            <div class="tax-input-row">
+              <input name="annualTaxes" id="annualTaxesInput" type="text" inputmode="decimal" value="0" data-currency>
+              <button type="button" id="taxLookupButton" title="Lookup property taxes">Lookup</button>
+            </div>
+            <div class="lookup-status" id="taxLookupStatus" role="status" aria-live="polite"></div>
+          </div>
           <label>Taxes already paid?
             <select name="taxesPaid">
               <option value="no">No - seller owes proration</option>
               <option value="yes">Yes - seller gets credit</option>
             </select>
           </label>
-          <div class="tax-lookup">
-            <button type="button" id="taxLookupButton">Lookup property taxes</button>
-            <div class="lookup-status" id="taxLookupStatus" role="status" aria-live="polite"></div>
-          </div>
           <label>Annual HOA / condo dues
             <input name="annualHoa" type="text" inputmode="decimal" value="0" data-currency>
           </label>
