@@ -3,7 +3,7 @@
    Cache version: bump CACHE_VERSION when files change
    ===================================================== */
 
-const CACHE_VERSION = "catena-netsheet-v4";
+const CACHE_VERSION = "netsheets-v1.1.0";
 
 const APP_SHELL = [
   "./index.html",
@@ -16,11 +16,13 @@ const APP_SHELL = [
 ];
 
 const NETWORK_FIRST_ORIGINS = [
-  "gisweb-adapters.bcpa.net",
+  "fnzgcomwddejhtxfgcie.supabase.co",
   "api.zippopotam.us",
-  "nominatim.openstreetmap.org",
-  "r.jina.ai"
+  "nominatim.openstreetmap.org"
 ];
+
+// Always try network first for the main page so deploys show up immediately
+const NETWORK_FIRST_PATHS = ["/index.html", "/netsheets/", "/netsheets/index.html"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -44,6 +46,13 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
   if (NETWORK_FIRST_ORIGINS.includes(url.hostname)) {
+    event.respondWith(networkFirst(event.request));
+    return;
+  }
+
+  const isPage = event.request.mode === "navigate" ||
+    NETWORK_FIRST_PATHS.some((p) => url.pathname.endsWith(p));
+  if (isPage) {
     event.respondWith(networkFirst(event.request));
     return;
   }
