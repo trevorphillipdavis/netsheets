@@ -751,14 +751,11 @@
         const params = new URLSearchParams({
           phy_addr1: "ilike." + street,
           select: "parcel_id,phy_addr1,phy_city,tv_sd,tv_nsd,tax_auth_cd,own_name",
-          limit: "5"
+          limit: "5",
+          apikey: SUPABASE_ANON_KEY
         });
         const res = await fetch(`${SUPABASE_URL}/rest/v1/broward_taxes?${params.toString()}`, {
-          signal: taxLookupController.signal,
-          headers: {
-            "apikey": SUPABASE_ANON_KEY,
-            "Authorization": "Bearer " + SUPABASE_ANON_KEY
-          }
+          signal: taxLookupController.signal
         });
         if (!res.ok) throw new Error("HTTP " + res.status);
         const records = await res.json();
