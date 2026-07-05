@@ -628,10 +628,14 @@
 
         <h2>Prorations</h2>
         <div class="section grid">
-          <label>Annual property taxes
-            <input name="annualTaxes" id="annualTaxesInput" type="text" inputmode="decimal" value="0" data-currency>
+          <div class="tax-field">
+            <span class="field-label">Annual property taxes</span>
+            <div class="tax-input-row">
+              <input name="annualTaxes" id="annualTaxesInput" type="text" inputmode="decimal" value="0" data-currency aria-label="Annual property taxes">
+              <button type="button" id="taxLookupButton" class="primary">Lookup Taxes</button>
+            </div>
             <div class="lookup-status" id="taxLookupStatus" role="status" aria-live="polite"></div>
-          </label>
+          </div>
           <label>Taxes already paid?
             <select name="taxesPaid">
               <option value="no">No - seller owes proration</option>
@@ -714,7 +718,6 @@
     // Broward millage: exact rates by tax authority code (per $1,000). Fallback is a blended county average.
     const BROWARD_MILLAGE = { "2613": 18.8981 };
     const BROWARD_DEFAULT_MILLAGE = 19.5;
-    let lastTaxLookupAddr = "";
     let taxLookupController;
 
     function setTaxStatus(msg, kind) {
@@ -729,17 +732,20 @@
     async function lookupBrowardTax() {
       const street = normalizeAddrForSearch(text("street"));
       const county = text("county").toLowerCase();
-      if (!street || street.length < 4) return;
-      if (!county.includes("broward")) return;      // only Broward data is loaded
-      if (street === lastTaxLookupAddr) return;      // don't re-prompt for same address
-
-      const proceed = window.confirm("Auto-populate estimated property taxes for this address?");
-      lastTaxLookupAddr = street;
-      if (!proceed) return;
+      if (!street || street.length < 4) {
+        setTaxStatus("Enter a street address first.", "error");
+        return;
+      }
+      if (!county.includes("broward")) {
+        setTaxStatus("Tax lookup is only available for Broward County properties.", "error");
+        return;
+      }
 
       if (taxLookupController) taxLookupController.abort();
       taxLookupController = new AbortController();
 
+      const btn = document.getElementById("taxLookupButton");
+      btn.disabled = true;
       setTaxStatus("Looking up property taxes\u2026", "progress");
       try {
         const params = new URLSearchParams({
@@ -783,6 +789,8 @@
       } catch (err) {
         if (err.name === "AbortError") return;
         setTaxStatus("Lookup failed. Check your connection or enter taxes manually.", "error");
+      } finally {
+        document.getElementById("taxLookupButton").disabled = false;
       }
     }
     let zipLookupTimer;
@@ -1209,7 +1217,7 @@ function formatCurrencyField(field) {
       generatePdf();
     });
     zipInput.addEventListener("input", lookupZip);
-    form.elements.street.addEventListener("blur", lookupBrowardTax);
+    document.getElementById("taxLookupButton").addEventListener("click", lookupBrowardTax);
     form.querySelectorAll("[data-currency]").forEach((field) => {
       field.addEventListener("blur", () => formatCurrencyField(field));
       field.addEventListener("focus", () => field.select());
