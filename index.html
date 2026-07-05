@@ -708,7 +708,7 @@
   </main>
 
   <footer style="text-align:center; padding:20px 16px 32px; color:var(--cp-text-soft); font-size:0.72rem;">
-    Net Sheets <span id="appVersion">v1.1.3</span>
+    Net Sheets <span id="appVersion">v1.1.4</span>
   </footer>
 
   <script>
@@ -768,13 +768,10 @@
       document.getElementById("trimPdfLink").style.display = "none";
       setTaxStatus("Looking up property taxes\u2026 (fetching official bill)", "progress");
       try {
-        const params = new URLSearchParams({
-          phy_addr1: "ilike." + street + "*",
-          select: "parcel_id,phy_addr1,phy_city,tv_sd,tv_nsd,tax_auth_cd,own_name",
-          limit: "5",
-          apikey: SUPABASE_ANON_KEY
-        });
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/broward_taxes?${params.toString()}`, {
+        const addrParam = "phy_addr1=ilike." + encodeURIComponent(street).replace(/%20/g, "%20") + "*";
+        const selectParam = "select=parcel_id,phy_addr1,phy_city,tv_sd,tv_nsd,tax_auth_cd,own_name";
+        const query = `${addrParam}&${selectParam}&limit=5&apikey=${SUPABASE_ANON_KEY}`;
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/broward_taxes?${query}`, {
           signal: taxLookupController.signal
         });
         if (!res.ok) throw new Error("HTTP " + res.status);
