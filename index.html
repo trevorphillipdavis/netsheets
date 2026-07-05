@@ -308,13 +308,13 @@
     }
 
     .actions {
-      position: sticky;
-      bottom: 0;
+      position: static;
       display: flex;
       gap: 10px;
-      padding: 12px 16px;
+      padding: 16px;
       background: var(--cp-panel-strong);
       border-top: 1px solid var(--cp-border);
+      border-radius: 0 0 12px 12px;
     }
 
     .pdf-options {
@@ -472,6 +472,7 @@
       color: var(--cp-text-muted);
       font-size: 0.78rem;
       margin-top: 14px;
+      margin-bottom: 12px;
     }
 
     .pill {
@@ -635,6 +636,7 @@
               <button type="button" id="taxLookupButton" class="primary">Lookup Taxes</button>
             </div>
             <div class="lookup-status" id="taxLookupStatus" role="status" aria-live="polite"></div>
+            <a id="trimPdfLink" href="#" target="_blank" rel="noopener" style="display:none; font-size:0.78rem; font-weight:600; color:var(--cp-link); text-decoration:none; margin-top:2px;">View official BCPA tax document (PDF) &rsaquo;</a>
           </div>
           <label>Taxes already paid?
             <select name="taxesPaid">
@@ -706,7 +708,7 @@
   </main>
 
   <footer style="text-align:center; padding:20px 16px 32px; color:var(--cp-text-soft); font-size:0.72rem;">
-    Net Sheets <span id="appVersion">v1.1.1</span>
+    Net Sheets <span id="appVersion">v1.1.2</span>
   </footer>
 
   <script>
@@ -722,6 +724,19 @@
     // Broward millage: exact rates by tax authority code (per $1,000). Fallback is a blended county average.
     const BROWARD_MILLAGE = { "2613": 18.8981 };
     const BROWARD_DEFAULT_MILLAGE = 19.5;
+    // BCPA TRIM/tax document PDF. Path is year-specific — update each August.
+    const BCPA_TRIM_PATH = "https://web.bcpa.net/Trims3/trimaug2025";
+    // Edge function that fetches + parses the TRIM PDF server-side, returns the real combined total.
+    const TRIM_TAX_FN = "https://fnzgcomwddejhtxfgcie.supabase.co/functions/v1/trim-tax";
+
+    function buildTrimPdfUrl(parcelId) {
+      const id = String(parcelId || "").replace(/\D/g, "");
+      if (id.length !== 12) return "";
+      const first6 = id.slice(0, 6);
+      const next2 = id.slice(6, 8);
+      const last4 = id.slice(8, 12);
+      return `${BCPA_TRIM_PATH}/${first6}/${first6}-${next2}-${last4}.pdf`;
+    }
     let taxLookupController;
 
     function setTaxStatus(msg, kind) {
@@ -750,7 +765,8 @@
 
       const btn = document.getElementById("taxLookupButton");
       btn.disabled = true;
-      setTaxStatus("Looking up property taxes\u2026", "progress");
+      document.getElementById("trimPdfLink").style.display = "none";
+      setTaxStatus("Looking up property taxes\u2026 (fetching official bill)", "progress");
       try {
         const params = new URLSearchParams({
           phy_addr1: "ilike." + street,
@@ -768,6 +784,45 @@
           return;
         }
         const rec = records[0];
+        const taxField = form.elements.annualTaxes;
+        const trimLink = document.getElementById("trimPdfLink");
+
+        // Always offer the official PDF link when we have a valid parcel id.
+        const trimUrl = buildTrimPdfUrl(rec.parcel_id);
+        if (trimUrl) {
+          trimLink.href = trimUrl;
+          trimLink.style.display = "inline-block";
+        } else {
+          trimLink.style.display = "none";
+        }
+
+        // 1) Try the edge function for the exact combined bill (ad valorem + non-ad valorem).
+        let officialTotal = null;
+        try {
+          const fnRes = await fetch(`${TRIM_TAX_FN}?parcel_id=${encodeURIComponent(rec.parcel_id)}&apikey=${SUPABASE_ANON_KEY}`, {
+            signal: taxLookupController.signal
+          });
+          if (fnRes.ok) {
+            const data = await fnRes.json();
+            if (data && typeof data.total === "number") officialTotal = data.total;
+          }
+        } catch (fnErr) {
+          if (fnErr.name === "AbortError") return;
+          // fall through to estimate
+        }
+
+        if (officialTotal !== null) {
+          taxField.value = String(Math.round(officialTotal));
+          formatCurrencyField(taxField);
+          render();
+          setTaxStatus(
+            `Actual ${moneyFormatter.format(officialTotal)} combined tax (ad valorem + non-ad valorem) from BCPA. Adjust if needed.`,
+            "success"
+          );
+          return;
+        }
+
+        // 2) Fallback: estimate from taxable value \u00d7 millage.
         const taxable = Number(rec.tv_sd) || 0;
         if (!taxable) {
           setTaxStatus("Property found, but no taxable value on record. Enter manually.", "error");
@@ -777,14 +832,13 @@
         const estTax = Math.round((taxable / 1000) * millage);
         const exact = Boolean(BROWARD_MILLAGE[rec.tax_auth_cd]);
 
-        const taxField = form.elements.annualTaxes;
         taxField.value = String(estTax);
         formatCurrencyField(taxField);
         render();
 
         const rateNote = exact ? "exact millage" : "estimated county rate";
         setTaxStatus(
-          `Estimated ${moneyFormatter.format(estTax)} from taxable value ${moneyFormatter.format(taxable)} (${rateNote}). Adjust if needed.`,
+          `Estimated ${moneyFormatter.format(estTax)} (ad valorem only, ${rateNote}). Official bill unavailable \u2014 adjust if needed.`,
           "success"
         );
       } catch (err) {
