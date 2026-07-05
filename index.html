@@ -237,6 +237,23 @@
       color: var(--cp-danger);
     }
 
+    .lookup-status.progress::before {
+      content: "";
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-right: 6px;
+      vertical-align: -1px;
+      border: 2px solid var(--cp-link);
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
     .sr-only {
       position: absolute;
       width: 1px;
@@ -613,6 +630,7 @@
         <div class="section grid">
           <label>Annual property taxes
             <input name="annualTaxes" id="annualTaxesInput" type="text" inputmode="decimal" value="0" data-currency>
+            <div class="lookup-status" id="taxLookupStatus" role="status" aria-live="polite"></div>
           </label>
           <label>Taxes already paid?
             <select name="taxesPaid">
@@ -688,6 +706,85 @@
     const rows = document.getElementById("summaryRows");
     const zipInput = document.getElementById("zipInput");
     const zipLookupStatus = document.getElementById("zipLookupStatus");
+    const taxLookupStatus = document.getElementById("taxLookupStatus");
+
+    // --- Supabase Broward County tax lookup config ---
+    const SUPABASE_URL = "https://fnzgcomwddejhtxfgcie.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZuemdjb213ZGRlamh0eGZnY2llIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNTM1MDcsImV4cCI6MjA5ODcyOTUwN30.rME7UATwvxMO1RYQgbKw6QX1cmAY6ZQ5ITeyXnLza5w";
+    // Broward millage: exact rates by tax authority code (per $1,000). Fallback is a blended county average.
+    const BROWARD_MILLAGE = { "2613": 18.8981 };
+    const BROWARD_DEFAULT_MILLAGE = 19.5;
+    let lastTaxLookupAddr = "";
+    let taxLookupController;
+
+    function setTaxStatus(msg, kind) {
+      taxLookupStatus.textContent = msg || "";
+      taxLookupStatus.className = "lookup-status" + (kind ? " " + kind : "");
+    }
+
+    function normalizeAddrForSearch(addr) {
+      return addr.trim().toUpperCase().replace(/\s+/g, " ").replace(/[.,]/g, "");
+    }
+
+    async function lookupBrowardTax() {
+      const street = normalizeAddrForSearch(text("street"));
+      const county = text("county").toLowerCase();
+      if (!street || street.length < 4) return;
+      if (!county.includes("broward")) return;      // only Broward data is loaded
+      if (street === lastTaxLookupAddr) return;      // don't re-prompt for same address
+
+      const proceed = window.confirm("Auto-populate estimated property taxes for this address?");
+      lastTaxLookupAddr = street;
+      if (!proceed) return;
+
+      if (taxLookupController) taxLookupController.abort();
+      taxLookupController = new AbortController();
+
+      setTaxStatus("Looking up property taxes\u2026", "progress");
+      try {
+        const params = new URLSearchParams({
+          phy_addr1: "ilike." + street,
+          select: "parcel_id,phy_addr1,phy_city,tv_sd,tv_nsd,tax_auth_cd,own_name",
+          limit: "5"
+        });
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/broward_taxes?${params.toString()}`, {
+          signal: taxLookupController.signal,
+          headers: {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": "Bearer " + SUPABASE_ANON_KEY
+          }
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const records = await res.json();
+        if (!records.length) {
+          setTaxStatus("No matching Broward property found. Enter taxes manually.", "error");
+          return;
+        }
+        const rec = records[0];
+        const taxable = Number(rec.tv_sd) || 0;
+        if (!taxable) {
+          setTaxStatus("Property found, but no taxable value on record. Enter manually.", "error");
+          return;
+        }
+        const millage = BROWARD_MILLAGE[rec.tax_auth_cd] || BROWARD_DEFAULT_MILLAGE;
+        const estTax = Math.round((taxable / 1000) * millage);
+        const exact = Boolean(BROWARD_MILLAGE[rec.tax_auth_cd]);
+
+        const taxField = form.elements.annualTaxes;
+        taxField.value = String(estTax);
+        formatCurrencyField(taxField);
+        render();
+
+        const rateNote = exact ? "exact millage" : "estimated county rate";
+        setTaxStatus(
+          `Estimated ${moneyFormatter.format(estTax)} from taxable value ${moneyFormatter.format(taxable)} (${rateNote}). Adjust if needed.`,
+          "success"
+        );
+      } catch (err) {
+        if (err.name === "AbortError") return;
+        setTaxStatus("Lookup failed. Check your connection or enter taxes manually.", "error");
+      }
+    }
     let zipLookupTimer;
     let zipLookupController;
     const moneyFormatter = new Intl.NumberFormat("en-US", {
@@ -1112,6 +1209,7 @@ function formatCurrencyField(field) {
       generatePdf();
     });
     zipInput.addEventListener("input", lookupZip);
+    form.elements.street.addEventListener("blur", lookupBrowardTax);
     form.querySelectorAll("[data-currency]").forEach((field) => {
       field.addEventListener("blur", () => formatCurrencyField(field));
       field.addEventListener("focus", () => field.select());
