@@ -708,7 +708,7 @@
   </main>
 
   <footer style="text-align:center; padding:20px 16px 32px; color:var(--cp-text-soft); font-size:0.72rem;">
-    Net Sheets <span id="appVersion">v1.1.4</span>
+    Net Sheets <span id="appVersion">v1.1.5</span>
   </footer>
 
   <script>
@@ -745,7 +745,26 @@
     }
 
     function normalizeAddrForSearch(addr) {
-      return addr.trim().toUpperCase().replace(/\s+/g, " ").replace(/[.,]/g, "");
+      let s = addr.trim().toUpperCase().replace(/[.,]/g, "").replace(/\s+/g, " ");
+      // Strip ordinal suffixes on numbers: 190TH -> 190, 1ST -> 1, 42ND -> 42, 3RD -> 3
+      s = s.replace(/\b(\d+)(ST|ND|RD|TH)\b/g, "$1");
+      // Abbreviate common street types to match county format (AVE, ST, etc.)
+      const types = {
+        "AVENUE": "AVE", "STREET": "ST", "ROAD": "RD", "DRIVE": "DR",
+        "LANE": "LN", "COURT": "CT", "PLACE": "PL", "BOULEVARD": "BLVD",
+        "TERRACE": "TER", "CIRCLE": "CIR", "TRAIL": "TRL", "PARKWAY": "PKWY",
+        "HIGHWAY": "HWY", "WAY": "WAY"
+      };
+      s = s.replace(/\b(AVENUE|STREET|ROAD|DRIVE|LANE|COURT|PLACE|BOULEVARD|TERRACE|CIRCLE|TRAIL|PARKWAY|HIGHWAY)\b/g,
+        (m) => types[m] || m);
+      // Normalize directionals: NORTH -> N, SOUTHWEST -> SW, etc.
+      const dirs = {
+        "NORTHWEST": "NW", "NORTHEAST": "NE", "SOUTHWEST": "SW", "SOUTHEAST": "SE",
+        "NORTH": "N", "SOUTH": "S", "EAST": "E", "WEST": "W"
+      };
+      s = s.replace(/\b(NORTHWEST|NORTHEAST|SOUTHWEST|SOUTHEAST|NORTH|SOUTH|EAST|WEST)\b/g,
+        (m) => dirs[m] || m);
+      return s.replace(/\s+/g, " ").trim();
     }
 
     async function lookupBrowardTax() {
