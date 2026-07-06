@@ -376,6 +376,12 @@
 
     .sheet {
       padding: 22px;
+    }
+
+    .sheet-col {
+      display: grid;
+      gap: 16px;
+      align-content: start;
       position: sticky;
       top: 16px;
     }
@@ -542,6 +548,11 @@
         position: static;
       }
 
+      .sheet-col {
+        position: static;
+        display: block;
+      }
+
       .summary-total {
         break-inside: avoid;
       }
@@ -667,7 +678,7 @@
 
       </form>
 
-      <div style="display:grid; gap:16px; align-content:start;">
+      <div class="sheet-col">
         <section class="sheet" id="pdfSheet" aria-live="polite">
           <div class="sheet-header">
             <h2>Seller Net Sheet</h2>
@@ -708,7 +719,7 @@
   </main>
 
   <footer style="text-align:center; padding:20px 16px 32px; color:var(--cp-text-soft); font-size:0.72rem;">
-    Net Sheets <span id="appVersion">v1.1.6</span>
+    Net Sheets <span id="appVersion">v1.1.7</span>
   </footer>
 
   <script>
