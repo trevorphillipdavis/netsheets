@@ -719,7 +719,7 @@
   </main>
 
   <footer style="text-align:center; padding:20px 16px 32px; color:var(--cp-text-soft); font-size:0.72rem;">
-    Net Sheets <span id="appVersion">v1.2.0</span>
+    Net Sheets <span id="appVersion">v1.2.1</span>
   </footer>
 
   <script>
@@ -729,30 +729,50 @@
          ?edition=basic | ?edition=pro | ?edition=proplus (default)
        A build can also hard-set it below via FORCED_EDITION.
        ========================================================= */
+    const EDITION_DEFAULTS = {
+      taxLookup: false,
+      countyTaxDoc: false,
+      docStampLookup: false,
+      branding: false,
+      defaultPreparedBy: "",
+      hidePreparedFor: false,
+      hideSellerCredits: false,
+      hideBrokerFee: false,
+      foldDocStamps: false,        // fold doc stamps into the settlement fee line
+      fixedDocStampPct: null,      // force a doc stamp % (e.g. 0.7)
+      settlementBase: null,        // base settlement fee before doc stamps are folded in
+      settlementLabel: "Settlement Closing Fees / Lien Search"
+    };
+
     const EDITIONS = {
       basic: {
-        name: "Basic",
-        taxLookup: false,        // automatic property tax lookup
-        countyTaxDoc: false,     // link to official county tax PDF
-        docStampLookup: false,   // automatic doc stamp rate by county
-        branding: false,         // custom agent branding
-        defaultPreparedBy: ""
+        name: "Basic"
       },
       pro: {
         name: "Pro",
-        taxLookup: false,
-        countyTaxDoc: false,
-        docStampLookup: false,
-        branding: true,
-        defaultPreparedBy: ""
+        branding: true
       },
       proplus: {
         name: "Pro+",
         taxLookup: true,
         countyTaxDoc: true,
         docStampLookup: true,
+        branding: true
+      },
+      arelyswebsite: {
+        name: "Arelys Catena",
+        taxLookup: false,
+        countyTaxDoc: false,
+        docStampLookup: false,      // rate is fixed at 0.7 for this edition
         branding: true,
-        defaultPreparedBy: ""
+        defaultPreparedBy: "Arelys Catena",
+        hidePreparedFor: true,
+        hideSellerCredits: true,
+        hideBrokerFee: true,
+        foldDocStamps: true,
+        fixedDocStampPct: 0.7,
+        settlementBase: 2200,       // base fee; doc stamps are added on top in the input
+        settlementLabel: "Estimated Settlement Closing Fees / Lien Search/Doc Stamps"
       }
     };
 
@@ -764,7 +784,7 @@
       return "proplus";
     }
     const EDITION_KEY = resolveEdition();
-    const CONFIG = EDITIONS[EDITION_KEY];
+    const CONFIG = Object.assign({}, EDITION_DEFAULTS, EDITIONS[EDITION_KEY]);
 
     const form = document.getElementById("netSheetForm");
     const rows = document.getElementById("summaryRows");
@@ -1019,8 +1039,14 @@ function formatCurrencyField(field) {
       const mortgagePayoffs = value("mortgage1") + value("mortgage2");
       const commissions = salePrice * ((value("listingPct") + value("buyerPct")) / 100) + value("brokerFee");
       const sellerCredits = value("sellerCredits");
-      const transferTaxes = salePrice * (value("transferTaxPct") / 100);
+      const docStamps = salePrice * (value("transferTaxPct") / 100);
+      // When folded, the settlement fee INPUT already includes doc stamps, so we
+      // use it as-is and zero the separate transfer-tax line to avoid double counting.
+      let transferTaxes = docStamps;
       const settlementFees = value("settlementFee");
+      if (CONFIG.foldDocStamps) {
+        transferTaxes = 0;
+      }
       const close = closingDate();
       const elapsedDays = close ? dayOfYear(close) : 0;
       const taxProration = (value("annualTaxes") / 365) * elapsedDays * (form.elements.taxesPaid.value === "yes" ? -1 : 1);
@@ -1043,16 +1069,21 @@ function formatCurrencyField(field) {
     }
 
     function summaryItems(calc) {
-      return [
+      const items = [
         ["Estimated sale price", calc.salePrice, "credit"],
         ["Mortgage Payoffs", -calc.mortgagePayoffs, "debit"],
-        ["Broker commissions", -calc.commissions, "debit"],
-        ["Seller concessions / credits", -calc.sellerCredits, "debit"],
-        ["Transfer taxes / doc stamps", -calc.transferTaxes, "debit"],
-        ["Settlement Closing Fees / Lien Search", -calc.settlementFees, "debit"],
-        ["Tax proration", -calc.taxProration, calc.taxProration < 0 ? "credit" : "debit"],
-        ["HOA proration", -calc.hoaProration, calc.hoaProration < 0 ? "credit" : "debit"]
+        ["Broker commissions", -calc.commissions, "debit"]
       ];
+      if (!CONFIG.hideSellerCredits) {
+        items.push(["Seller concessions / credits", -calc.sellerCredits, "debit"]);
+      }
+      if (!CONFIG.foldDocStamps) {
+        items.push(["Transfer taxes / doc stamps", -calc.transferTaxes, "debit"]);
+      }
+      items.push([CONFIG.settlementLabel, -calc.settlementFees, "debit"]);
+      items.push(["Tax proration", -calc.taxProration, calc.taxProration < 0 ? "credit" : "debit"]);
+      items.push(["HOA proration", -calc.hoaProration, calc.hoaProration < 0 ? "credit" : "debit"]);
+      return items;
     }
 
     function render() {
@@ -1088,29 +1119,38 @@ function formatCurrencyField(field) {
     }
 
     function detailInputItems() {
-      return [
+      const items = [
         ["Street address", text("street") || "Not provided"],
         ["City", text("city") || "Not provided"],
         ["State", text("state") || "Not provided"],
         ["ZIP code", text("zip") || "Not provided"],
-        ["County", text("county") || "Not provided"],
-        ["Prepared for", text("client") || "Not provided"],
-        ["Prepared by", text("preparedBy") || "Not provided"],
-        ["Estimated closing date", closingDate() ? dateFormatter.format(closingDate()) : "Not provided"],
-        ["Estimated sale price", formatMoney(value("salePrice"))],
-        ["First mortgage payoff", formatMoney(value("mortgage1"))],
-        ["Second mortgage / HELOC payoff", formatMoney(value("mortgage2"))],
-        ["Seller concessions / credits", formatMoney(value("sellerCredits"))],
-        ["Listing agent commission %", `${value("listingPct").toFixed(2)}%`],
-        ["Buyer agent commission %", `${value("buyerPct").toFixed(2)}%`],
-        ["Other broker/admin fee", formatMoney(value("brokerFee"))],
-        ["Doc stamps / transfer tax %", `${value("transferTaxPct").toFixed(3)}%`],
-        ["Settlement Closing Fees / Lien Search", formatMoney(value("settlementFee"))],
-        ["Annual property taxes", formatMoney(value("annualTaxes"))],
-        ["Taxes already paid?", form.elements.taxesPaid.value === "yes" ? "Yes" : "No"],
-        ["Annual HOA / condo dues", formatMoney(value("annualHoa"))],
-        ["HOA dues already paid?", form.elements.hoaPaid.value === "yes" ? "Yes" : "No"]
+        ["County", text("county") || "Not provided"]
       ];
+      if (!CONFIG.hidePreparedFor) {
+        items.push(["Prepared for", text("client") || "Not provided"]);
+      }
+      items.push(["Prepared by", text("preparedBy") || "Not provided"]);
+      items.push(["Estimated closing date", closingDate() ? dateFormatter.format(closingDate()) : "Not provided"]);
+      items.push(["Estimated sale price", formatMoney(value("salePrice"))]);
+      items.push(["First mortgage payoff", formatMoney(value("mortgage1"))]);
+      items.push(["Second mortgage / HELOC payoff", formatMoney(value("mortgage2"))]);
+      if (!CONFIG.hideSellerCredits) {
+        items.push(["Seller concessions / credits", formatMoney(value("sellerCredits"))]);
+      }
+      items.push(["Listing agent commission %", `${value("listingPct").toFixed(2)}%`]);
+      items.push(["Buyer agent commission %", `${value("buyerPct").toFixed(2)}%`]);
+      if (!CONFIG.hideBrokerFee) {
+        items.push(["Other broker/admin fee", formatMoney(value("brokerFee"))]);
+      }
+      if (!CONFIG.foldDocStamps) {
+        items.push(["Doc stamps / transfer tax %", `${value("transferTaxPct").toFixed(3)}%`]);
+      }
+      items.push([CONFIG.settlementLabel, formatMoney(value("settlementFee"))]);
+      items.push(["Annual property taxes", formatMoney(value("annualTaxes"))]);
+      items.push(["Taxes already paid?", form.elements.taxesPaid.value === "yes" ? "Yes" : "No"]);
+      items.push(["Annual HOA / condo dues", formatMoney(value("annualHoa"))]);
+      items.push(["HOA dues already paid?", form.elements.hoaPaid.value === "yes" ? "Yes" : "No"]);
+      return items;
     }
 
     function bytesToBinary(bytes) {
@@ -1340,7 +1380,16 @@ function formatCurrencyField(field) {
     form.addEventListener("reset", () => {
       setTimeout(() => {
         form.elements.closingDate.value = "";
+        // Restore edition-specific values that a native reset would wipe
+        if (CONFIG.defaultPreparedBy && form.elements.preparedBy) {
+          form.elements.preparedBy.value = CONFIG.defaultPreparedBy;
+        }
+        if (CONFIG.fixedDocStampPct !== null && form.elements.transferTaxPct) {
+          form.elements.transferTaxPct.value = CONFIG.fixedDocStampPct;
+        }
         initializeCurrencyFields();
+        settlementManuallyEdited = false;
+        updateFoldedSettlementFee();
         render();
       }, 0);
     });
@@ -1350,6 +1399,25 @@ function formatCurrencyField(field) {
     zipInput.addEventListener("input", lookupZip);
 
     /* ---- Apply edition config to the UI ---- */
+    let settlementManuallyEdited = false;
+
+    function updateFoldedSettlementFee() {
+      if (!CONFIG.foldDocStamps || CONFIG.settlementBase === null) return;
+      const field = form.elements.settlementFee;
+      if (!field) return;
+      const pct = CONFIG.fixedDocStampPct !== null ? CONFIG.fixedDocStampPct : value("transferTaxPct");
+      const docStamps = value("salePrice") * (pct / 100);
+      field.value = String(Math.round((CONFIG.settlementBase + docStamps) * 100) / 100);
+      formatCurrencyField(field);
+    }
+
+    function hideField(inputName) {
+      const el = form.elements[inputName];
+      if (!el) return;
+      const wrap = el.closest("label") || el.parentElement;
+      if (wrap) wrap.style.display = "none";
+    }
+
     function applyEditionConfig() {
       const taxBtn = document.getElementById("taxLookupButton");
       const trimLink = document.getElementById("trimPdfLink");
@@ -1366,9 +1434,57 @@ function formatCurrencyField(field) {
 
       if (!CONFIG.countyTaxDoc && trimLink) trimLink.remove();
 
-      if (!CONFIG.branding) {
-        const pb = form.elements.preparedBy;
-        if (pb) pb.value = CONFIG.defaultPreparedBy;
+      // Prepared by / Prepared for
+      const pb = form.elements.preparedBy;
+      if (pb && CONFIG.defaultPreparedBy) pb.value = CONFIG.defaultPreparedBy;
+      if (!CONFIG.branding && pb) pb.value = CONFIG.defaultPreparedBy;
+      if (CONFIG.hidePreparedFor) {
+        hideField("client");
+        if (form.elements.client) form.elements.client.value = "";
+        const sheetRow = document.querySelector('[data-out="client"]');
+        if (sheetRow && sheetRow.parentElement) sheetRow.parentElement.style.display = "none";
+      }
+
+      // Optional inputs removed for some editions (zeroed so totals stay correct)
+      if (CONFIG.hideSellerCredits) {
+        hideField("sellerCredits");
+        if (form.elements.sellerCredits) form.elements.sellerCredits.value = "0";
+      }
+      if (CONFIG.hideBrokerFee) {
+        hideField("brokerFee");
+        if (form.elements.brokerFee) form.elements.brokerFee.value = "0";
+      }
+
+      // Fixed doc stamp rate, folded into the settlement line
+      if (CONFIG.fixedDocStampPct !== null && form.elements.transferTaxPct) {
+        form.elements.transferTaxPct.value = CONFIG.fixedDocStampPct;
+      }
+      if (CONFIG.foldDocStamps) {
+        hideField("transferTaxPct");
+        // Keep the settlement input in sync with sale price, unless the user edits it
+        const saleField = form.elements.salePrice;
+        const settleField = form.elements.settlementFee;
+        if (settleField) {
+          settleField.addEventListener("input", () => { settlementManuallyEdited = true; });
+        }
+        if (saleField) {
+          saleField.addEventListener("input", () => {
+            if (!settlementManuallyEdited) {
+              updateFoldedSettlementFee();
+              render();
+            }
+          });
+        }
+        updateFoldedSettlementFee();
+      }
+
+      // Settlement fee label
+      const settlementInput = form.elements.settlementFee;
+      if (settlementInput) {
+        const lbl = settlementInput.closest("label");
+        if (lbl && lbl.firstChild && lbl.firstChild.nodeType === Node.TEXT_NODE) {
+          lbl.firstChild.nodeValue = CONFIG.settlementLabel + "\n            ";
+        }
       }
 
       // Show the edition in the footer next to the version
