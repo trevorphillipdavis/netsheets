@@ -710,6 +710,14 @@
 
         </section>
 
+        <div id="emailDeliveryRow" style="display:none; padding:14px 16px 0;">
+          <label style="display:block; font-size:0.86rem; font-weight:600; color:var(--cp-text);">Your email address
+            <input name="recipientEmail" id="recipientEmail" type="email" inputmode="email"
+                   placeholder="you@example.com" autocomplete="email"
+                   style="width:100%; margin-top:6px;">
+          </label>
+          <div class="lookup-status" id="emailStatus" role="status" aria-live="polite"></div>
+        </div>
         <div class="actions">
           <button class="primary" type="button" id="printButton">Generate PDF</button>
           <button type="reset">Reset</button>
@@ -719,7 +727,7 @@
   </main>
 
   <footer style="text-align:center; padding:20px 16px 32px; color:var(--cp-text-soft); font-size:0.72rem;">
-    Net Sheets <span id="appVersion">v1.2.1</span>
+    Net Sheets <span id="appVersion">v1.2.2</span>
   </footer>
 
   <script>
@@ -741,7 +749,9 @@
       foldDocStamps: false,        // fold doc stamps into the settlement fee line
       fixedDocStampPct: null,      // force a doc stamp % (e.g. 0.7)
       settlementBase: null,        // base settlement fee before doc stamps are folded in
-      settlementLabel: "Settlement Closing Fees / Lien Search"
+      settlementLabel: "Settlement Closing Fees / Lien Search",
+      emailDelivery: false,        // email the PDF instead of downloading it
+      emailButtonLabel: "Email My Net Sheet"
     };
 
     const EDITIONS = {
@@ -772,7 +782,8 @@
         foldDocStamps: true,
         fixedDocStampPct: 0.7,
         settlementBase: 2200,       // base fee; doc stamps are added on top in the input
-        settlementLabel: "Estimated Settlement Closing Fees / Lien Search/Doc Stamps"
+        settlementLabel: "Estimated Settlement Closing Fees / Lien Search/Doc Stamps",
+        emailDelivery: false   // set true once the send-netsheet function is deployed
       }
     };
 
@@ -1291,6 +1302,67 @@ function formatCurrencyField(field) {
       return binaryToBytes(pdf);
     }
 
+    // Endpoint that emails the net sheet PDF (BCC is set server-side).
+    const SEND_NETSHEET_FN = "https://fnzgcomwddejhtxfgcie.supabase.co/functions/v1/send-netsheet";
+
+    function setEmailStatus(msg, kind) {
+      const el = document.getElementById("emailStatus");
+      if (!el) return;
+      el.textContent = msg || "";
+      el.className = "lookup-status" + (kind ? " " + kind : "");
+    }
+
+    function validEmail(addr) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(addr || "").trim());
+    }
+
+    async function emailPdf() {
+      const emailField = document.getElementById("recipientEmail");
+      const recipient = emailField ? emailField.value.trim() : "";
+      const btn = document.getElementById("printButton");
+
+      if (!validEmail(recipient)) {
+        setEmailStatus("Please enter a valid email address.", "error");
+        if (emailField) emailField.focus();
+        return;
+      }
+
+      render();
+      btn.disabled = true;
+      setEmailStatus("Preparing and sending your net sheet\u2026", "progress");
+
+      try {
+        const bytes = buildPdfDocument(await loadPdfLogo());
+        const pdfBase64 = btoa(bytesToBinary(bytes));
+        const zip = text("zip") || "net-sheet";
+
+        const res = await fetch(SEND_NETSHEET_FN, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: recipient,
+            filename: `seller-net-sheet-${zip}.pdf`,
+            propertyAddress: composeAddress() || "",
+            preparedBy: text("preparedBy") || "",
+            pdfBase64
+          })
+        });
+
+        if (!res.ok) {
+          let detail = "";
+          try { detail = (await res.json()).error || ""; } catch (_) {}
+          throw new Error(detail || ("HTTP " + res.status));
+        }
+
+        setEmailStatus("Sent! Check your inbox for your net sheet.", "success");
+        if (emailField) emailField.value = "";
+      } catch (err) {
+        setEmailStatus("Could not send the email. Please try again.", "error");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
     async function generatePdf() {
       render();
       const blob = new Blob([buildPdfDocument(await loadPdfLogo())], { type: "application/pdf" });
@@ -1394,7 +1466,7 @@ function formatCurrencyField(field) {
       }, 0);
     });
     document.getElementById("printButton").addEventListener("click", () => {
-      generatePdf();
+      if (CONFIG.emailDelivery) { emailPdf(); } else { generatePdf(); }
     });
     zipInput.addEventListener("input", lookupZip);
 
@@ -1485,6 +1557,14 @@ function formatCurrencyField(field) {
         if (lbl && lbl.firstChild && lbl.firstChild.nodeType === Node.TEXT_NODE) {
           lbl.firstChild.nodeValue = CONFIG.settlementLabel + "\n            ";
         }
+      }
+
+      // Email delivery instead of direct download
+      if (CONFIG.emailDelivery) {
+        const row = document.getElementById("emailDeliveryRow");
+        const btn = document.getElementById("printButton");
+        if (row) row.style.display = "block";
+        if (btn) btn.textContent = CONFIG.emailButtonLabel;
       }
 
       // Show the edition in the footer next to the version
