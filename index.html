@@ -21,7 +21,7 @@
   <!-- PWA: General -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="Net Sheet">
-  <meta name="description" content="Quickly estimate seller net proceeds and generate a ready-to-share PDF — by Arelys Catena.">
+  <meta name="description" content="Quickly estimate seller net proceeds and generate a ready-to-share PDF.">
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
   <script>
     (() => {
@@ -596,7 +596,7 @@
             <input name="client" type="text" value="">
           </label>
           <label>Prepared by
-            <input name="preparedBy" type="text" value="Arelys Catena">
+            <input name="preparedBy" type="text" value="">
           </label>
           <label>Estimated closing date
             <input name="closingDate" type="date">
@@ -719,10 +719,53 @@
   </main>
 
   <footer style="text-align:center; padding:20px 16px 32px; color:var(--cp-text-soft); font-size:0.72rem;">
-    Net Sheets <span id="appVersion">v1.1.9</span>
+    Net Sheets <span id="appVersion">v1.2.0</span>
   </footer>
 
   <script>
+    /* =========================================================
+       EDITION CONFIG
+       One codebase serves every tier. Pick an edition with:
+         ?edition=basic | ?edition=pro | ?edition=proplus (default)
+       A build can also hard-set it below via FORCED_EDITION.
+       ========================================================= */
+    const EDITIONS = {
+      basic: {
+        name: "Basic",
+        taxLookup: false,        // automatic property tax lookup
+        countyTaxDoc: false,     // link to official county tax PDF
+        docStampLookup: false,   // automatic doc stamp rate by county
+        branding: false,         // custom agent branding
+        defaultPreparedBy: ""
+      },
+      pro: {
+        name: "Pro",
+        taxLookup: false,
+        countyTaxDoc: false,
+        docStampLookup: false,
+        branding: true,
+        defaultPreparedBy: ""
+      },
+      proplus: {
+        name: "Pro+",
+        taxLookup: true,
+        countyTaxDoc: true,
+        docStampLookup: true,
+        branding: true,
+        defaultPreparedBy: ""
+      }
+    };
+
+    const FORCED_EDITION = null;   // e.g. "basic" to lock a build to one tier
+    function resolveEdition() {
+      if (FORCED_EDITION && EDITIONS[FORCED_EDITION]) return FORCED_EDITION;
+      const q = new URLSearchParams(location.search).get("edition");
+      if (q && EDITIONS[q.toLowerCase()]) return q.toLowerCase();
+      return "proplus";
+    }
+    const EDITION_KEY = resolveEdition();
+    const CONFIG = EDITIONS[EDITION_KEY];
+
     const form = document.getElementById("netSheetForm");
     const rows = document.getElementById("summaryRows");
     const zipInput = document.getElementById("zipInput");
@@ -944,6 +987,7 @@
     }
 
     function updateDocStampRate() {
+      if (!CONFIG.docStampLookup) return;   // Basic/Pro: user enters the rate manually
       const zip = text("zip").replace(/\D/g, "").slice(0, 5);
       const state = text("state").toUpperCase();
       const rate = floridaDocStampRates.get(normalizeCounty(text("county")));
@@ -1304,7 +1348,34 @@ function formatCurrencyField(field) {
       generatePdf();
     });
     zipInput.addEventListener("input", lookupZip);
-    document.getElementById("taxLookupButton").addEventListener("click", lookupBrowardTax);
+
+    /* ---- Apply edition config to the UI ---- */
+    function applyEditionConfig() {
+      const taxBtn = document.getElementById("taxLookupButton");
+      const trimLink = document.getElementById("trimPdfLink");
+      const taxRow = document.querySelector(".tax-input-row");
+
+      if (CONFIG.taxLookup) {
+        taxBtn.addEventListener("click", lookupBrowardTax);
+      } else {
+        // Basic/Pro: no automatic lookup — plain manual tax entry
+        if (taxBtn) taxBtn.remove();
+        if (taxRow) taxRow.style.gridTemplateColumns = "1fr";
+        if (taxLookupStatus) taxLookupStatus.remove();
+      }
+
+      if (!CONFIG.countyTaxDoc && trimLink) trimLink.remove();
+
+      if (!CONFIG.branding) {
+        const pb = form.elements.preparedBy;
+        if (pb) pb.value = CONFIG.defaultPreparedBy;
+      }
+
+      // Show the edition in the footer next to the version
+      const verEl = document.getElementById("appVersion");
+      if (verEl) verEl.textContent = verEl.textContent + " \u00b7 " + CONFIG.name;
+    }
+    applyEditionConfig();
     form.querySelectorAll("[data-currency]").forEach((field) => {
       field.addEventListener("blur", () => formatCurrencyField(field));
       field.addEventListener("focus", () => field.select());
