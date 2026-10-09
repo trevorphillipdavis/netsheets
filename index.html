@@ -567,7 +567,7 @@
           <h1>Real Estate Net Sheet</h1>
           <p class="subtitle">Create a seller proceeds estimate and generate a ready-to-share PDF.</p>
         </div>
-        <img class="brand-logo" src="catena-logo.png" alt="Catena logo">
+        <img class="brand-logo" id="brandLogo" src="catena-logo.png" alt="The Catena Team logo">
       </div>
 
     </header>
@@ -727,7 +727,7 @@
   </main>
 
   <footer style="text-align:center; padding:20px 16px 32px; color:var(--cp-text-soft); font-size:0.72rem;">
-    Net Sheets <span id="appVersion">v1.2.2</span>
+    Net Sheets <span id="appVersion">v1.2.3</span>
   </footer>
 
   <script>
@@ -742,6 +742,14 @@
       countyTaxDoc: false,
       docStampLookup: false,
       branding: false,
+      brandLogo: "catena-logo.png",
+      brandLogoAlt: "The Catena Team logo",
+      pdfLogo: "catena-logo-pdf.jpg",
+      pdfLogoWidth: 480,
+      pdfLogoHeight: 180,
+      pdfLogoDisplayWidth: 315,
+      pdfLogoDisplayHeight: 118,
+      pdfPropertyMaxLength: 44,
       defaultPreparedBy: "",
       hidePreparedFor: false,
       hideSellerCredits: false,
@@ -756,7 +764,15 @@
 
     const EDITIONS = {
       basic: {
-        name: "Basic"
+        name: "Basic",
+        brandLogo: "netsheets-logo.png",
+        brandLogoAlt: "NetSheets — Seller Net Proceeds",
+        pdfLogo: "netsheets-logo-pdf.jpg",
+        pdfLogoWidth: 760,
+        pdfLogoHeight: 240,
+        pdfLogoDisplayWidth: 240,
+        pdfLogoDisplayHeight: 76,
+        pdfPropertyMaxLength: 20
       },
       pro: {
         name: "Pro",
@@ -967,9 +983,11 @@
       day: "numeric"
     });
     const pdfLogo = {
-      path: "catena-logo-pdf.jpg",
-      width: 480,
-      height: 180
+      path: CONFIG.pdfLogo,
+      width: CONFIG.pdfLogoWidth,
+      height: CONFIG.pdfLogoHeight,
+      displayWidth: CONFIG.pdfLogoDisplayWidth,
+      displayHeight: CONFIG.pdfLogoDisplayHeight
     };
     const floridaDocStampRates = new Map([
       ["alachua", 0.7], ["baker", 0.7], ["bay", 0.7], ["bradford", 0.7], ["brevard", 0.7],
@@ -1217,8 +1235,8 @@ function formatCurrencyField(field) {
 
       function pdfHeader(content, title) {
         line(content, title, 50, 720, 22, brandTone);
-        logo(content, 247, 624, 315, 118);
-        line(content, `Property: ${truncate(address, 44)}`, 50, 695, 10, brandTone);
+        logo(content, 562 - pdfLogo.displayWidth, 742 - pdfLogo.displayHeight, pdfLogo.displayWidth, pdfLogo.displayHeight);
+        line(content, `Property: ${truncate(address, CONFIG.pdfPropertyMaxLength)}`, 50, 695, 10, brandTone);
         line(content, `Prepared for: ${truncate(preparedFor, 48)}`, 50, 679, 10, "0.36 0.36 0.36");
         line(content, `Prepared by: ${truncate(preparedBy, 48)}`, 50, 663, 10, "0.36 0.36 0.36");
         line(content, `Estimated closing date: ${closing}`, 50, 647, 10, "0.36 0.36 0.36");
@@ -1491,6 +1509,12 @@ function formatCurrencyField(field) {
     }
 
     function applyEditionConfig() {
+      const brandLogo = document.getElementById("brandLogo");
+      if (brandLogo) {
+        brandLogo.src = CONFIG.brandLogo;
+        brandLogo.alt = CONFIG.brandLogoAlt;
+      }
+
       const taxBtn = document.getElementById("taxLookupButton");
       const trimLink = document.getElementById("trimPdfLink");
       const taxRow = document.querySelector(".tax-input-row");

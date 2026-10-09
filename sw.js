@@ -3,12 +3,14 @@
    Cache version: bump CACHE_VERSION when files change
    ===================================================== */
 
-const CACHE_VERSION = "netsheets-v1.2.2";
+const CACHE_VERSION = "netsheets-v1.2.3";
 
 const APP_SHELL = [
   "./index.html",
   "./catena-logo.png",
   "./catena-logo-pdf.jpg",
+  "./netsheets-logo.png",
+  "./netsheets-logo-pdf.jpg",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",
