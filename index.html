@@ -149,6 +149,22 @@
       max-width: 720px;
     }
 
+    .license-label {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 6px 10px;
+      border: 1px solid var(--cp-border);
+      border-radius: 999px;
+      color: var(--cp-success);
+      background: var(--cp-surface);
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    .license-label[hidden] {
+      display: none;
+    }
+
     .layout {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(360px, 0.85fr);
@@ -566,6 +582,7 @@
         <div>
           <h1>Real Estate Net Sheet</h1>
           <p class="subtitle">Create a seller proceeds estimate and generate a ready-to-share PDF.</p>
+          <p class="license-label" id="licenseLabel" hidden></p>
         </div>
         <img class="brand-logo" id="brandLogo" src="catena-logo.png" alt="The Catena Team logo">
       </div>
@@ -688,6 +705,7 @@
               <div><strong>Prepared for:</strong> <span data-out="client"></span></div>
               <div><strong>Prepared by:</strong> <span data-out="preparedBy"></span></div>
               <div><strong>Estimated closing date:</strong> <span data-out="closingDate"></span></div>
+              <div id="sheetLicenseRow" hidden><strong>Licensed to:</strong> <span data-out="licensedTo"></span></div>
             </div>
           </div>
 
@@ -727,7 +745,7 @@
   </main>
 
   <footer style="text-align:center; padding:20px 16px 32px; color:var(--cp-text-soft); font-size:0.72rem;">
-    Net Sheets <span id="appVersion">v1.2.3</span>
+    Net Sheets <span id="appVersion">v1.2.4</span>
   </footer>
 
   <script>
@@ -804,6 +822,10 @@
     };
 
     const FORCED_EDITION = null;   // e.g. "basic" to lock a build to one tier
+    const BASIC_CUSTOMERS = {
+      "gabriel-mercado": "Gabriel Mercado"
+    };
+
     function resolveEdition() {
       if (FORCED_EDITION && EDITIONS[FORCED_EDITION]) return FORCED_EDITION;
       const q = new URLSearchParams(location.search).get("edition");
@@ -812,6 +834,10 @@
     }
     const EDITION_KEY = resolveEdition();
     const CONFIG = Object.assign({}, EDITION_DEFAULTS, EDITIONS[EDITION_KEY]);
+    const customerSlug = new URLSearchParams(location.search).get("customer");
+    const LICENSED_CUSTOMER = EDITION_KEY === "basic" && customerSlug
+      ? BASIC_CUSTOMERS[customerSlug.toLowerCase()] || ""
+      : "";
 
     const form = document.getElementById("netSheetForm");
     const rows = document.getElementById("summaryRows");
@@ -1234,6 +1260,9 @@ function formatCurrencyField(field) {
       }
 
       function pdfHeader(content, title) {
+        if (LICENSED_CUSTOMER) {
+          line(content, `Licensed to: ${LICENSED_CUSTOMER}`, 50, 752, 9, "0.04 0.35 0.16", "F2");
+        }
         line(content, title, 50, 720, 22, brandTone);
         logo(content, 562 - pdfLogo.displayWidth, 742 - pdfLogo.displayHeight, pdfLogo.displayWidth, pdfLogo.displayHeight);
         line(content, `Property: ${truncate(address, CONFIG.pdfPropertyMaxLength)}`, 50, 695, 10, brandTone);
@@ -1509,6 +1538,15 @@ function formatCurrencyField(field) {
     }
 
     function applyEditionConfig() {
+      const licenseLabel = document.getElementById("licenseLabel");
+      const sheetLicenseRow = document.getElementById("sheetLicenseRow");
+      if (LICENSED_CUSTOMER) {
+        licenseLabel.textContent = "Licensed to " + LICENSED_CUSTOMER;
+        licenseLabel.hidden = false;
+        document.querySelector('[data-out="licensedTo"]').textContent = LICENSED_CUSTOMER;
+        sheetLicenseRow.hidden = false;
+      }
+
       const brandLogo = document.getElementById("brandLogo");
       if (brandLogo) {
         brandLogo.src = CONFIG.brandLogo;

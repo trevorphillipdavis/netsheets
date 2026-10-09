@@ -3,7 +3,7 @@
    Cache version: bump CACHE_VERSION when files change
    ===================================================== */
 
-const CACHE_VERSION = "netsheets-v1.2.3";
+const CACHE_VERSION = "netsheets-v1.2.4";
 
 const APP_SHELL = [
   "./index.html",
