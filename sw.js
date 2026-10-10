@@ -3,7 +3,7 @@
    Cache version: bump CACHE_VERSION when files change
    ===================================================== */
 
-const CACHE_VERSION = "netsheets-v1.3.2";
+const CACHE_VERSION = "netsheets-v1.3.3";
 
 const APP_SHELL = [
   "./index.html",
@@ -12,9 +12,9 @@ const APP_SHELL = [
   "./netsheets-logo.png",
   "./netsheets-logo-pdf.jpg",
   "./manifest.json",
-  "./icon-192.png",
-  "./icon-512.png",
-  "./apple-touch-icon.png"
+  "./netsheets-icon-180.png",
+  "./netsheets-icon-192.png",
+  "./netsheets-icon-512.png"
 ];
 
 const NETWORK_FIRST_ORIGINS = [
