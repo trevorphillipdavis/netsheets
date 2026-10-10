@@ -1,9 +1,9 @@
 /* =====================================================
-   Catena Net Sheet — Service Worker
+   NetSheets — Service Worker
    Cache version: bump CACHE_VERSION when files change
    ===================================================== */
 
-const CACHE_VERSION = "netsheets-v1.2.4";
+const CACHE_VERSION = "netsheets-v1.3.0";
 
 const APP_SHELL = [
   "./index.html",

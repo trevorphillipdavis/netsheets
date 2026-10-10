@@ -1,8 +1,7 @@
 {
-  "name": "Real Estate Net Sheet – Arelys Catena",
+  "name": "Real Estate Net Sheet",
   "short_name": "Net Sheet",
-  "description": "Quickly estimate seller net proceeds and generate a ready-to-share PDF — by Arelys Catena.",
-  "start_url": "./index.html",
+  "description": "Quickly estimate seller net proceeds and generate a ready-to-share PDF.",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",

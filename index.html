@@ -509,6 +509,168 @@
       font-weight: 700;
     }
 
+    .ios-install-banner {
+      position: fixed;
+      z-index: 1000;
+      right: max(16px, env(safe-area-inset-right));
+      bottom: max(16px, env(safe-area-inset-bottom));
+      left: max(16px, env(safe-area-inset-left));
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 12px;
+      align-items: center;
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 12px;
+      border: 1px solid var(--cp-border);
+      border-radius: 18px;
+      background: var(--cp-panel-strong);
+      box-shadow: var(--cp-shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .ios-install-banner[hidden],
+    .install-modal[hidden] {
+      display: none;
+    }
+
+    .install-app-icon {
+      width: 54px;
+      height: 54px;
+      border-radius: 13px;
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.18);
+    }
+
+    .ios-install-copy {
+      min-width: 0;
+    }
+
+    .ios-install-copy strong,
+    .ios-install-copy span {
+      display: block;
+    }
+
+    .ios-install-copy span {
+      color: var(--cp-text-muted);
+      font-size: 0.82rem;
+      margin-top: 2px;
+    }
+
+    .ios-install-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .ios-install-actions .install-help-button {
+      white-space: nowrap;
+    }
+
+    .install-dismiss,
+    .install-modal-close {
+      min-width: 42px;
+      padding: 9px;
+      border: 0;
+      background: transparent;
+      color: var(--cp-text-muted);
+      font-size: 1.35rem;
+      line-height: 1;
+    }
+
+    .install-modal {
+      position: fixed;
+      z-index: 1100;
+      inset: 0;
+      display: grid;
+      place-items: end center;
+      padding: 18px max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+      background: rgba(0, 0, 0, 0.52);
+    }
+
+    .install-modal-card {
+      width: min(100%, 480px);
+      max-height: calc(100dvh - 36px);
+      overflow: auto;
+      padding: 22px;
+      border: 1px solid var(--cp-border);
+      border-radius: 24px;
+      background: var(--cp-surface);
+      box-shadow: var(--cp-shadow);
+    }
+
+    .install-modal-heading {
+      display: grid;
+      grid-template-columns: 64px 1fr auto;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .install-modal-heading .install-app-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 15px;
+    }
+
+    .install-modal-heading h2 {
+      font-size: 1.25rem;
+    }
+
+    .install-modal-heading p {
+      color: var(--cp-text-muted);
+      font-size: 0.85rem;
+      margin-top: 3px;
+    }
+
+    .install-steps {
+      display: grid;
+      gap: 12px;
+      margin: 22px 0 18px;
+      padding: 0;
+      list-style: none;
+      counter-reset: install-step;
+    }
+
+    .install-steps li {
+      counter-increment: install-step;
+      display: grid;
+      grid-template-columns: 34px 1fr;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid var(--cp-border);
+      border-radius: 14px;
+      background: var(--cp-surface-soft);
+    }
+
+    .install-steps li::before {
+      content: counter(install-step);
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--cp-accent);
+      color: var(--cp-accent-fg);
+      font-weight: 800;
+    }
+
+    .install-share-symbol {
+      color: var(--cp-link);
+      font-size: 1.25rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .install-modal-note {
+      color: var(--cp-text-muted);
+      font-size: 0.8rem;
+      text-align: center;
+    }
+
+    body.install-modal-open {
+      overflow: hidden;
+    }
+
     @media (max-width: 860px) {
       .app {
         padding: 14px;
@@ -534,6 +696,18 @@
       .sheet {
         position: static;
       }
+
+      .ios-install-banner {
+        grid-template-columns: auto 1fr;
+      }
+
+      .ios-install-actions {
+        grid-column: 1 / -1;
+      }
+
+      .ios-install-actions .install-help-button {
+        flex: 1;
+      }
     }
 
     @media print {
@@ -548,7 +722,9 @@
 
       header,
       .card,
-      .actions {
+      .actions,
+      .ios-install-banner,
+      .install-modal {
         display: none;
       }
 
@@ -744,8 +920,39 @@
     </div>
   </main>
 
+  <aside class="ios-install-banner" id="iosInstallBanner" aria-label="Install NetSheets" hidden>
+    <img class="install-app-icon" src="apple-touch-icon.png" alt="">
+    <div class="ios-install-copy">
+      <strong id="iosInstallTitle">Add NetSheets to your iPhone</strong>
+      <span>Open it like an app from your Home Screen.</span>
+    </div>
+    <div class="ios-install-actions">
+      <button class="primary install-help-button" type="button" id="installHelpButton">Show me how</button>
+      <button class="install-dismiss" type="button" id="installDismissButton" aria-label="Dismiss install suggestion">&times;</button>
+    </div>
+  </aside>
+
+  <div class="install-modal" id="installModal" role="dialog" aria-modal="true" aria-labelledby="installModalTitle" hidden>
+    <section class="install-modal-card">
+      <div class="install-modal-heading">
+        <img class="install-app-icon" src="apple-touch-icon.png" alt="NetSheets app icon">
+        <div>
+          <h2 id="installModalTitle">Add NetSheets to your Home Screen</h2>
+          <p id="installAppName">It will open with this customer license.</p>
+        </div>
+        <button class="install-modal-close" type="button" id="installModalClose" aria-label="Close instructions">&times;</button>
+      </div>
+      <ol class="install-steps">
+        <li>Tap the <span class="install-share-symbol">Share &#8593;</span> button in Safari.</li>
+        <li>Scroll down and tap <strong>Add to Home Screen</strong>.</li>
+        <li>Leave <strong>Open as Web App</strong> on, then tap <strong>Add</strong>.</li>
+      </ol>
+      <p class="install-modal-note">Apple requires you to approve this once. After that, use the new icon on your Home Screen.</p>
+    </section>
+  </div>
+
   <footer style="text-align:center; padding:20px 16px 32px; color:var(--cp-text-soft); font-size:0.72rem;">
-    Net Sheets <span id="appVersion">v1.2.4</span>
+    Net Sheets <span id="appVersion">v1.3.0</span>
   </footer>
 
   <script>
@@ -838,6 +1045,61 @@
     const LICENSED_CUSTOMER = EDITION_KEY === "basic" && customerSlug
       ? BASIC_CUSTOMERS[customerSlug.toLowerCase()] || ""
       : "";
+
+    function setupIosInstallExperience() {
+      const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      const isSafari = /Safari/.test(navigator.userAgent) &&
+        !/CriOS|FxiOS|EdgiOS|OPiOS/.test(navigator.userAgent);
+      const isStandalone = window.matchMedia("(display-mode: standalone)").matches ||
+        window.navigator.standalone === true;
+      const banner = document.getElementById("iosInstallBanner");
+      const modal = document.getElementById("installModal");
+      const helpButton = document.getElementById("installHelpButton");
+      const dismissButton = document.getElementById("installDismissButton");
+      const closeButton = document.getElementById("installModalClose");
+      const customerFirstName = LICENSED_CUSTOMER ? LICENSED_CUSTOMER.split(" ")[0] : "";
+      const appName = customerFirstName ? customerFirstName + " NetSheet" : "NetSheets";
+
+      document.querySelector('meta[name="apple-mobile-web-app-title"]').content = appName;
+      document.title = LICENSED_CUSTOMER
+        ? LICENSED_CUSTOMER + " | Real Estate Net Sheet"
+        : "Real Estate Net Sheet";
+      document.getElementById("iosInstallTitle").textContent = customerFirstName
+        ? "Add " + customerFirstName + "'s NetSheet to your iPhone"
+        : "Add NetSheets to your iPhone";
+      document.getElementById("installModalTitle").textContent = "Add " + appName + " to your Home Screen";
+      document.getElementById("installAppName").textContent = LICENSED_CUSTOMER
+        ? "Licensed to " + LICENSED_CUSTOMER + "."
+        : "Your NetSheet will open like an app.";
+
+      if (!isIos || !isSafari || isStandalone || sessionStorage.getItem("netsheets-install-dismissed")) return;
+
+      window.setTimeout(() => { banner.hidden = false; }, 900);
+
+      function closeModal() {
+        modal.hidden = true;
+        document.body.classList.remove("install-modal-open");
+        helpButton.focus();
+      }
+
+      helpButton.addEventListener("click", () => {
+        modal.hidden = false;
+        document.body.classList.add("install-modal-open");
+        closeButton.focus();
+      });
+      dismissButton.addEventListener("click", () => {
+        banner.hidden = true;
+        sessionStorage.setItem("netsheets-install-dismissed", "1");
+      });
+      closeButton.addEventListener("click", closeModal);
+      modal.addEventListener("click", (event) => {
+        if (event.target === modal) closeModal();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !modal.hidden) closeModal();
+      });
+    }
 
     const form = document.getElementById("netSheetForm");
     const rows = document.getElementById("summaryRows");
@@ -1634,6 +1896,7 @@ function formatCurrencyField(field) {
       if (verEl) verEl.textContent = verEl.textContent + " \u00b7 " + CONFIG.name;
     }
     applyEditionConfig();
+    setupIosInstallExperience();
     form.querySelectorAll("[data-currency]").forEach((field) => {
       field.addEventListener("blur", () => formatCurrencyField(field));
       field.addEventListener("focus", () => field.select());
