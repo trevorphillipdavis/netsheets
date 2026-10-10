@@ -827,7 +827,7 @@
             <span class="input-suffix"><input name="transferTaxPct" type="number" inputmode="decimal" min="0" step="0.001" value="0"><span>%</span></span>
           </label>
           <label>Settlement Closing Fees / Lien Search
-            <input name="settlementFee" type="text" inputmode="decimal" value="2200" data-currency>
+            <input name="settlementFee" type="text" inputmode="decimal" value="0" data-currency>
           </label>
         </div>
 
@@ -952,7 +952,7 @@
   </div>
 
   <footer style="text-align:center; padding:20px 16px 32px; color:var(--cp-text-soft); font-size:0.72rem;">
-    Net Sheets <span id="appVersion">v1.3.0</span>
+    Net Sheets <span id="appVersion">v1.3.1</span>
   </footer>
 
   <script>
@@ -1045,6 +1045,7 @@
     const LICENSED_CUSTOMER = EDITION_KEY === "basic" && customerSlug
       ? BASIC_CUSTOMERS[customerSlug.toLowerCase()] || ""
       : "";
+    const DEFAULT_PREPARED_BY = LICENSED_CUSTOMER || CONFIG.defaultPreparedBy;
 
     function setupIosInstallExperience() {
       const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -1762,8 +1763,8 @@ function formatCurrencyField(field) {
       setTimeout(() => {
         form.elements.closingDate.value = "";
         // Restore edition-specific values that a native reset would wipe
-        if (CONFIG.defaultPreparedBy && form.elements.preparedBy) {
-          form.elements.preparedBy.value = CONFIG.defaultPreparedBy;
+        if (DEFAULT_PREPARED_BY && form.elements.preparedBy) {
+          form.elements.preparedBy.value = DEFAULT_PREPARED_BY;
         }
         if (CONFIG.fixedDocStampPct !== null && form.elements.transferTaxPct) {
           form.elements.transferTaxPct.value = CONFIG.fixedDocStampPct;
@@ -1832,8 +1833,7 @@ function formatCurrencyField(field) {
 
       // Prepared by / Prepared for
       const pb = form.elements.preparedBy;
-      if (pb && CONFIG.defaultPreparedBy) pb.value = CONFIG.defaultPreparedBy;
-      if (!CONFIG.branding && pb) pb.value = CONFIG.defaultPreparedBy;
+      if (pb && DEFAULT_PREPARED_BY) pb.value = DEFAULT_PREPARED_BY;
       if (CONFIG.hidePreparedFor) {
         hideField("client");
         if (form.elements.client) form.elements.client.value = "";
